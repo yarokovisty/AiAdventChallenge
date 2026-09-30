@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "mobile": {
+      "command": "claude-in-mobile",
+      "env": {
+        "PATH": "C:\\Users\\yaros\\AppData\\Local\\Android\\Sdk\\platform-tools;C:\\Users\\yaros\\AppData\\Roaming\\npm;${PATH}"
+      }
+    }
+  }
+}
