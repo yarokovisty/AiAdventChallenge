@@ -1,0 +1,13 @@
+{
+  "enabledMcpjsonServers": ["mobile"],
+  "permissions": {
+    "allow": [
+      "Bash(adb *)",
+      "Bash(./gradlew *)",
+      "Bash(gradlew *)",
+      "Bash(gradlew.bat *)",
+      "Bash(*gradlew*)",
+      "Bash(*emulator*)"
+    ]
+  }
+}
