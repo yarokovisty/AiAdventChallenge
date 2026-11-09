@@ -29,6 +29,7 @@ Open-Meteo (https://open-meteo.com) — бесплатное, без ключе�
 """
 
 import logging
+import sys
 from typing import Annotated
 
 import httpx
@@ -289,6 +290,9 @@ async def get_weather_forecast(
 
 
 if __name__ == "__main__":
-    # stdio-транспорт: stdout занят JSON-RPC, поэтому никаких print'ов —
-    # сервер молчит в протокол и просто работает.
+    # Логи SDK (в т.ч. сообщения об ошибках инструментов) идут в stderr —
+    # на Windows он по умолчанию не UTF-8, из-за чего кириллица превращается
+    # в «кракозябры». stdout не трогаем: он занят JSON-RPC.
+    if sys.platform == "win32" and sys.stderr.encoding and sys.stderr.encoding.lower() not in ("utf-8", "utf8"):
+        sys.stderr.reconfigure(encoding="utf-8")
     server.run("stdio")
