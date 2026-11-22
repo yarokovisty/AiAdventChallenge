@@ -162,6 +162,9 @@ class LlmFatalError(RuntimeError):
     """Ошибка без смысла повторять (нет ключа, 401, кривой запрос)."""
 
 
+RATE_LIMIT_DELAYS = (10, 20, 40)  # 429 — паузы между попытками, секунды
+
+
 def llm_call(messages: list[dict], temperature: float = TEMPERATURE) -> str:
     api_key = os.getenv("ZAI_API_KEY")
     if not api_key or api_key == "your_api_key_here":
@@ -176,7 +179,10 @@ def llm_call(messages: list[dict], temperature: float = TEMPERATURE) -> str:
         "temperature": temperature,
         "thinking": {"type": "disabled"},  # короткие детерминированные ответы
     }
-    for attempt in (1, 2):
+    # 429 (rate limit) — транзиентный: терпеливый backoff 10/20/40 с; прочие
+    # сетевые/серверные сбои — один повтор через 2 с (как в day-2/day-3).
+    waits_429, other_attempt = 0, 0
+    while True:
         try:
             resp = requests.post(
                 url,
@@ -191,17 +197,29 @@ def llm_call(messages: list[dict], temperature: float = TEMPERATURE) -> str:
                 if not content:
                     raise LlmRetryableError(f"пустой content: {json.dumps(data)[:160]}")
                 return content
-            if resp.status_code == 429 or resp.status_code >= 500:
+            if resp.status_code == 429:
+                if waits_429 >= len(RATE_LIMIT_DELAYS):
+                    raise LlmFatalError(
+                        f"HTTP 429: rate limit держится после {waits_429} ожиданий: "
+                        f"{resp.text[:160]}"
+                    )
+                wait = RATE_LIMIT_DELAYS[waits_429]
+                waits_429 += 1
+                print(f"    [rate limit: ждём {wait} с "
+                      f"(ожидание {waits_429}/{len(RATE_LIMIT_DELAYS)})]")
+                time.sleep(wait)
+                continue
+            if resp.status_code >= 500:
                 raise LlmRetryableError(f"HTTP {resp.status_code}: {resp.text[:160]}")
             raise LlmFatalError(f"HTTP {resp.status_code}: {resp.text[:160]}")
         except LlmFatalError:
             raise
         except (requests.RequestException, LlmRetryableError) as exc:
-            if attempt == 2:
+            if other_attempt >= 1:
                 raise LlmFatalError(f"LLM недоступна после повтора: {exc}") from exc
+            other_attempt += 1
             print(f"    [сбой запроса, повтор через 2 с: {exc}]")
             time.sleep(2)
-    raise LlmFatalError("unreachable")
 
 
 # --------------------------------------------------------------------------- #
